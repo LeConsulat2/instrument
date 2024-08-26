@@ -1,28 +1,35 @@
+from flask import Flask, request, render_template, send_from_directory
 import os
 from pydub import AudioSegment
-import streamlit as st
+
+app = Flask(__name__)
+UPLOAD_FOLDER = "uploads"
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
 
-# Step 1 - Separate the audio into different stems using Spleeter
-def separate_audio(input_file, output_folder):
-    os.system(
-        f'spleeter separate -i "{input_file}" -p spleeter:5stems -o "{output_folder}"'
-    )
+@app.route("/")
+def upload_form():
+    return render_template("upload.html")
 
 
-# Step 2 - Save each stem as a separate MP3
-def save_stems(output_folder, original_file_name):
-    stem_names = ["vocals", "drums", "bass", "piano", "other"]
-    base_name = os.path.splitext(original_file_name)[0]
-    stems_folder = os.path.join(output_folder, base_name)
+@app.route("/upload", methods=["POST"])
+def upload_file():
+    file = request.files["file"]
+    if file:
+        file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+        file.save(file_path)
+        process_audio(file_path)
+        return send_from_directory(UPLOAD_FOLDER, file.filename)
+    return "No file uploaded", 400
 
-    for stem in stem_names:
-        stem_file_path = os.path.join(stems_folder, f"{stem}.wav")
-        if os.path.exists(stem_file_path):
-            stem_audio = AudioSegment.from_file(stem_file_path)
-            output_file = os.path.join(output_folder, f"{base_name}-{stem}.mp3")
-            stem_audio.export(output_file, format="mp3")
-            st.write(f"Saved {output_file}")
+
+def process_audio(input_file):
+    output_folder = os.path.dirname(input_file)
+    original_file_name = os.path.basename(input_file)
+    input_file = convert_to_mp3(input_file)
+    separate_audio(input_file, output_folder)
+    save_stems(output_folder, original_file_name)
 
 
 def convert_to_mp3(input_file):
@@ -34,34 +41,23 @@ def convert_to_mp3(input_file):
     return input_file
 
 
-# Step 4 - Main function to process the audio file
-def process_audio(input_file):
-    # Define output_folder (same location as the input file)
-    output_folder = os.path.dirname(input_file)
-    original_file_name = os.path.basename(input_file)
-
-    # Convert MP4 to MP3 if needed
-    input_file = convert_to_mp3(input_file)
-
-    # Separate the audio
-    separate_audio(input_file, output_folder)
-
-    # Save each stem as a separate MP3 file
-    save_stems(output_folder, original_file_name)
-
-    st.success(f"All stems saved in {output_folder}")
+def separate_audio(input_file, output_folder):
+    os.system(
+        f'spleeter separate -i "{input_file}" -p spleeter:5stems -o "{output_folder}"'
+    )
 
 
-# Streamlit Interface
-st.title("Audio Stem Separator")
+def save_stems(output_folder, original_file_name):
+    stem_names = ["vocals", "drums", "bass", "piano", "other"]
+    base_name = os.path.splitext(original_file_name)[0]
+    stems_folder = os.path.join(output_folder, base_name)
+    for stem in stem_names:
+        stem_file_path = os.path.join(stems_folder, f"{stem}.wav")
+        if os.path.exists(stem_file_path):
+            stem_audio = AudioSegment.from_file(stem_file_path)
+            output_file = os.path.join(output_folder, f"{base_name}-{stem}.mp3")
+            stem_audio.export(output_file, format="mp3")
 
-uploaded_file = st.file_uploader("Upload an audio file", type=["mp3", "mp4"])
 
-if uploaded_file is not None:
-    save_path = os.path.join("uploads", uploaded_file.name)
-    with open(save_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-    st.success(f"File {uploaded_file.name} uploaded successfully!")
-    if st.button("Process Audio"):
-        with st.spinner("Processing..."):
-            process_audio(save_path)
+if __name__ == "__main__":
+    app.run(debug=True)

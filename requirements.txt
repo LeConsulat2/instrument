@@ -1,4 +1,4 @@
-streamlit
 pydub
 spleeter
 python-ffmpeg
+flask
