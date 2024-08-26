@@ -2,4 +2,3 @@ streamlit
 pydub
 spleeter
 python-ffmpeg
-tensorflow
